@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Empty Chessboard Grid</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background-color: #302e2b;
+      font-family: Arial, sans-serif;
+    }
+
+    .game-container {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 20px; /* Spacing between the board and the future panel */
+      width: 95vw;
+      max-width: 1000px;
+    }
+
+    /* Responsive 8x8 Grid Container */
+    #chessboard {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      width: min(85vw, 600px);
+      height: min(85vw, 600px);
+      border: 4px solid #262421;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Individual Squares */
+    .square {
+      aspect-ratio: 1 / 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    /* Square Colors */
+    .light {
+      background-color: #f0d9b5;
+    }
+
+    .dark {
+      background-color: #b58863;
+    }
+
+    /* Hover effect for interaction feedback */
+    .square:hover {
+      filter: brightness(0.95);
+    }
+
+    /* Styling for any piece on the board */
+    .piece {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: min(7vw, 50px);
+      user-select: none;
+      cursor: grab;
+    }
+
+    .piece:active {
+      cursor: grabbing;
+    }
+
+    /* Optional styling states for different piece types/colors */
+    .white-piece {
+      color: #ffffff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    }
+
+    .black-piece {
+      color: #000000;
+      text-shadow: 0 1px 2px rgba(255, 255, 255, 0.2);
+    }
+    .square.selected {
+      background-color: rgba(247, 247, 105, 0.6) !important;
+    }
+    .turn-indicator {
+      font-size: 1.5rem;
+      color: #ffffff;
+      margin-bottom: 15px;
+      font-weight: bold;
+      user-select: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="turn-indicator">
+    Turn: <span id="turn-text">White</span> 
+    | White Score: <span id="white-score">0</span> 
+    | Black Score: <span id="black-score">0</span>
+  </div>
+  <div class="game-container">
+    <div id="chessboard"></div>
+    <!-- Future history/moves panel will go here -->
+  </div>
+
+  <script>
+    class EmptyChessBoard {
+      constructor(containerId) {
+        this.container = document.getElementById(containerId);
+        this.squares = [];
+        
+        // Unified Unicode dictionary for both colors
+        this.piecesUnicode = {
+          'wr': '♖', 'wn': '♘', 'wb': '♗', 'wq': '♕', 'wk': '♔', 'wp': '♙',
+          'br': '♜', 'bn': '♞', 'bb': '♝', 'bq': '♛', 'bk': '♚', 'bp': '♟'
+        };
+
+        // Full board state configuration
+        this.boardState = [
+          ['br', 'bn', 'bb', 'bq', 'bk', 'bb', 'bn', 'br'],
+          ['bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp'],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          ['wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp'],
+          ['wr', 'wn', 'wb', 'wq', 'wk', 'wb', 'wn', 'wr']
+        ];
+
+        this.createBoard();
+        this.renderPieces();
+        this.selectedSquare = null;
+        this.turn = 'w'; // 'w' for white, 'b' for black
+        this.turnTextEl = document.getElementById('turn-text');
+        // Score tracking state
+        this.whiteScore = 0;
+        this.blackScore = 0;
+        this.whiteScoreEl = document.getElementById('white-score');
+        this.blackScoreEl = document.getElementById('black-score');
+
+        // Chess piece evaluation points
+        this.pieceValues = {
+          'p': 1,
+          'n': 3,
+          'b': 3,
+          'r': 5,
+          'q': 9,
+          'k': 0 // King cannot be legally captured
+        };
+        this.gameOver = false;
+        this.enPassantSquare = null; // Stores { row, col } of the active en passant target square
+        // Add to the bottom of constructor()
+        this.hasMoved = {
+          'w_k': false, 'w_r_left': false, 'w_r_right': false,
+          'b_k': false, 'b_r_left': false, 'b_r_right': false
+        };
+      }
+
+
+      createBoard() {
+        this.container.innerHTML = '';
+
+        for (let row = 0; row < 8; row++) {
+          this.squares[row] = [];
+          
+          for (let col = 0; col < 8; col++) {
+            const square = document.createElement('div');
+            square.classList.add('square');
+
+            // Set alternating colors
+            const isLight = (row + col) % 2 === 0;
+            square.classList.add(isLight ? 'light' : 'dark');
+
+            // Store coordinate indices in data attributes
+            square.dataset.row = row;
+            square.dataset.col = col;
+
+            // Simple click listener to confirm coordinates are working
+            square.addEventListener('click', () => this.handleSquareClick(row, col));
+
+            this.container.appendChild(square);
+            this.squares[row][col] = square;
+          }
+        }
+      }
+
+      renderPieces() {
+        for (let row = 0; row < 8; row++) {
+          for (let col = 0; col < 8; col++) {
+            const pieceCode = this.boardState[row][col];
+            const square = this.squares[row][col];
+
+            // Clear any existing piece
+            square.innerHTML = '';
+
+            if (pieceCode) {
+              const pieceElement = document.createElement('div');
+              pieceElement.classList.add('piece');
+
+              // Determine color class based on piece code
+              const colorClass = pieceCode.startsWith('w') ? 'white-piece' : 'black-piece';
+              pieceElement.classList.add(colorClass);
+
+              // Set the Unicode character for the piece
+              pieceElement.textContent = this.piecesUnicode[pieceCode];
+
+              square.appendChild(pieceElement);
+            }
+          }
+        }
+      }
+      
+      isValidRookMove(from, to) {
+        // Rooks can only move along the same row or the same column
+        if (from.row !== to.row && from.col !== to.col) {
+          return false;
+        }
+
+        // Determine direction step values: -1, 0, or 1
+        const rowStep = from.row === to.row ? 0 : (to.row > from.row ? 1 : -1);
+        const colStep = from.col === to.col ? 0 : (to.col > from.col ? 1 : -1);
+
+        let currentRow = from.row + rowStep;
+        let currentCol = from.col + colStep;
+
+        // Check all squares between the source and target for obstacles
+        while (currentRow !== to.row || currentCol !== to.col) {
+          if (this.boardState[currentRow][currentCol] !== null) {
+            return false; // Path is blocked
+          }
+          currentRow += rowStep;
+          currentCol += colStep;
+        }
+
+        return true;
+      }
+
+      isValidBishopMove(from, to) {
+        const rowDiff = Math.abs(from.row - to.row);
+        const colDiff = Math.abs(from.col - to.col);
+
+        // Bishops must move diagonally
+        if (rowDiff !== colDiff) {
+          return false;
+        }
+
+        // Determine direction step values: -1 or 1
+        const rowStep = to.row > from.row ? 1 : -1;
+        const colStep = to.col > from.col ? 1 : -1;
+
+        let currentRow = from.row + rowStep;
+        let currentCol = from.col + colStep;
+
+        // Check all squares along the diagonal for obstacles
+        while (currentRow !== to.row || currentCol !== to.col) {
+          if (this.boardState[currentRow][currentCol] !== null) {
+            return false; // Path is blocked
+          }
+          currentRow += rowStep;
+          currentCol += colStep;
+        }
+
+        return true;
+      }
+
+      isValidQueenMove(from, to) {
+        return this.isValidRookMove(from, to) || this.isValidBishopMove(from, to);
+      }
+
+      isValidKnightMove(from, to) {
+        const rowDiff = Math.abs(from.row - to.row);
+        const colDiff = Math.abs(from.col - to.col);
+
+        return (rowDiff === 2 && colDiff === 1) || (rowDiff === 1 && colDiff === 2);
+      }
+
+      isValidPawnMove(from, to, color) {
+        const rowDiff = to.row - from.row;
+        const colDiff = Math.abs(to.col - from.col);
+        const targetPiece = this.boardState[to.row][to.col];
+
+        // Check if target is the active en passant square
+        const isEnPassant = this.enPassantSquare && 
+                            to.row === this.enPassantSquare.row && 
+                            to.col === this.enPassantSquare.col;
+
+        if (color === 'w') {
+          if (rowDiff === -1 && colDiff === 0 && !targetPiece) {
+            return true;
+          }
+          if (from.row === 6 && rowDiff === -2 && colDiff === 0 && !targetPiece) {
+            if (this.boardState[5][from.col] === null) {
+              return true;
+            }
+          }
+          // Allow diagonal movement if there is a target piece OR if it is an En Passant capture
+          if (rowDiff === -1 && colDiff === 1 && (targetPiece || isEnPassant)) {
+            return true;
+          }
+        } else if (color === 'b') {
+          if (rowDiff === 1 && colDiff === 0 && !targetPiece) {
+            return true;
+          }
+          if (from.row === 1 && rowDiff === 2 && colDiff === 0 && !targetPiece) {
+            if (this.boardState[2][from.col] === null) {
+              return true;
+            }
+          }
+          // Allow diagonal movement if there is a target piece OR if it is an En Passant capture
+          if (rowDiff === 1 && colDiff === 1 && (targetPiece || isEnPassant)) {
+            return true;
+          }
+        }
+
+        return false;
+      }
+
+      isValidKingMove(from, to, color) {
+        const rowDiff = Math.abs(from.row - to.row);
+        const colDiff = Math.abs(from.col - to.col);
+
+        // Standard 1-square movement validation
+        if (rowDiff <= 1 && colDiff <= 1) {
+          return true; // Step safety check is removed
+        }
+
+        // Castling movement validation
+        if (rowDiff === 0 && colDiff === 2) {
+          return this.isValidCastling(from, to, color);
+        }
+
+        return false;
+      }
+
+      isValidCastling(from, to, color) {
+        if (this.hasMoved[color + '_k']) return false;
+
+        const row = color === 'w' ? 7 : 0;
+        const opponentColor = color === 'w' ? 'b' : 'w';
+
+        // 1. Kingside (Short Castling)
+        if (to.row === row && to.col === 6) {
+          if (this.hasMoved[color + '_r_right']) return false;
+          if (this.boardState[row][5] !== null || this.boardState[row][6] !== null) return false;
+          
+          // Safety checks: King must not be in check, pass through check, or land in check
+          if (this.isSquareUnderAttack({ row, col: 4 }, opponentColor)) return false;
+          if (this.isSquareUnderAttack({ row, col: 5 }, opponentColor)) return false;
+          if (this.isSquareUnderAttack({ row, col: 6 }, opponentColor)) return false;
+          
+          return true;
+        }
+
+        // 2. Queenside (Long Castling)
+        if (to.row === row && to.col === 2) {
+          if (this.hasMoved[color + '_r_left']) return false;
+          if (this.boardState[row][1] !== null || this.boardState[row][2] !== null || this.boardState[row][3] !== null) return false;
+          
+          // Safety checks: King must not be in check, pass through check, or land in check
+          if (this.isSquareUnderAttack({ row, col: 4 }, opponentColor)) return false;
+          if (this.isSquareUnderAttack({ row, col: 3 }, opponentColor)) return false;
+          if (this.isSquareUnderAttack({ row, col: 2 }, opponentColor)) return false;
+          
+          return true;
+        }
+
+        return false;
+      }
+
+      findKing(color) {
+        const kingCode = color + 'k';
+        for (let row = 0; row < 8; row++) {
+          for (let col = 0; col < 8; col++) {
+            if (this.boardState[row][col] === kingCode) {
+              return { row, col };
+            }
+          }
+        }
+        return null;
+      }
+
+      isSquareUnderAttack(target, attackerColor) {
+        for (let row = 0; row < 8; row++) {
+          for (let col = 0; col < 8; col++) {
+            const piece = this.boardState[row][col];
+            if (piece && piece[0] === attackerColor) {
+              const pieceType = piece[1];
+              const from = { row, col };
+
+              if (pieceType === 'r' && this.isValidRookMove(from, target)) return true;
+              if (pieceType === 'b' && this.isValidBishopMove(from, target)) return true;
+              if (pieceType === 'q' && this.isValidQueenMove(from, target)) return true;
+              if (pieceType === 'n' && this.isValidKnightMove(from, target)) return true;
+              if (pieceType === 'p' && this.isValidPawnMove(from, target, attackerColor)) return true;
+            }
+          }
+        }
+        return false;
+      }
+
+      isKingInCheck(color) {
+        const kingPos = this.findKing(color);
+        if (!kingPos) return false;
+        const attackerColor = color === 'w' ? 'b' : 'w';
+        return this.isSquareUnderAttack(kingPos, attackerColor);
+      }
+
+      handleSquareClick(row, col) {
+        if (this.gameOver) return;
+        const pieceCode = this.boardState[row][col];
+
+        // Case 1: No piece is currently selected
+        if (this.selectedSquare === null) {
+          // Only allow selecting a piece that belongs to the active turn
+          if (pieceCode && pieceCode[0] === this.turn) {
+            this.selectedSquare = { row, col };
+            this.squares[row][col].classList.add('selected');
+          }
+        } 
+        // Case 2: A piece is already selected
+        else {
+          const from = this.selectedSquare;
+          const movingPiece = this.boardState[from.row][from.col];
+
+          // 1. If clicking a piece of the SAME color, switch selection to that piece instead
+          if (pieceCode && pieceCode[0] === movingPiece[0]) {
+            this.squares[from.row][from.col].classList.remove('selected');
+            this.selectedSquare = { row, col };
+            this.squares[row][col].classList.add('selected');
+            return;
+          }
+
+          // 2. If clicking the same square, cancel selection
+          if (from.row === row && from.col === col) {
+            this.squares[from.row][from.col].classList.remove('selected');
+            this.selectedSquare = null;
+            return;
+          }
+
+          // 3. Enforce movement validation rules
+          const pieceType = movingPiece[1];
+          if (pieceType === 'r') {
+            if (!this.isValidRookMove(from, { row, col })) return;
+          }
+          if (pieceType === 'b') {
+            if (!this.isValidBishopMove(from, { row, col })) return;
+          }
+          if (pieceType === 'q') {
+            if (!this.isValidQueenMove(from, { row, col })) return;
+          }
+          if (pieceType === 'n') {
+            if (!this.isValidKnightMove(from, { row, col })) return;
+          }
+          if (pieceType === 'p') {
+            const color = movingPiece[0];
+            if (!this.isValidPawnMove(from, { row, col }, color)) return;
+          }
+          if (pieceType === 'k') {
+            const color = movingPiece[0];
+            if (!this.isValidKingMove(from, { row, col }, color)) return;
+          }
+
+          // Clear active selection states (only after the move is validated)
+          this.squares[from.row][from.col].classList.remove('selected');
+          this.selectedSquare = null;
+
+          // Check and process scores for captured pieces, detecting if a King is captured
+          const targetPiece = this.boardState[row][col];
+          if (targetPiece) {
+            const pieceTypeTarget = targetPiece[1];
+            const value = this.pieceValues[pieceTypeTarget] || 0;
+            
+            if (this.turn === 'w') {
+              this.whiteScore += value;
+              this.whiteScoreEl.textContent = this.whiteScore;
+            } else {
+              this.blackScore += value;
+              this.blackScoreEl.textContent = this.blackScore;
+            }
+
+            // End the game if a King ('k') is captured (storing the announcement text)
+            if (pieceTypeTarget === 'k') {
+              this.gameOver = true;
+              const winner = this.turn === 'w' ? 'White' : 'Black';
+              this.winnerAnnouncement = `<strong>Game Over! ${winner} Won!</strong>`;
+            }
+          }
+
+          // Automatically move the Rook if castling is executed
+          if (pieceType === 'k' && Math.abs(from.col - col) === 2) {
+            const rowNum = movingPiece[0] === 'w' ? 7 : 0;
+            if (col === 6) { // Kingside
+              this.boardState[rowNum][5] = this.boardState[rowNum][7];
+              this.boardState[rowNum][7] = null;
+            } else if (col === 2) { // Queenside
+              this.boardState[rowNum][3] = this.boardState[rowNum][0];
+              this.boardState[rowNum][0] = null;
+            }
+          }
+
+          // 4. Simulate the move to verify if the active King is still under attack after the turn
+          const originalTarget = this.boardState[row][col];
+          
+          // Temporarily apply the move on the board state
+          this.boardState[row][col] = movingPiece;
+          this.boardState[from.row][from.col] = null;
+          
+          const kingUnderAttack = this.isKingInCheck(this.turn);
+          
+          // Revert the temporary move back to original state
+          this.boardState[from.row][from.col] = movingPiece;
+          this.boardState[row][col] = originalTarget;
+          
+          // If the active King remains under attack, trigger a pop-up and block the turn
+          if (kingUnderAttack) {
+            const proceed = confirm("Your King is still under attack!");
+            if (!proceed) {
+              return; // Abort turn and preserve active piece selection
+            }
+          }
+
+          // Get the DOM piece before changing states (FLIP: "First" state)
+          const pieceEl = this.squares[from.row][from.col].querySelector('.piece');
+
+          if (pieceEl) {
+            const firstRect = pieceEl.getBoundingClientRect();
+
+            // Check if this move is an En Passant capture
+            const isEnPassantCapture = pieceType === 'p' && 
+                                      this.enPassantSquare && 
+                                      row === this.enPassantSquare.row && 
+                                      col === this.enPassantSquare.col;
+
+            if (isEnPassantCapture) {
+              // Determine where the captured pawn is sitting (behind the target square)
+              const capturedPawnRow = this.turn === 'w' ? row + 1 : row - 1;
+              
+              // Award score
+              if (this.turn === 'w') {
+                this.whiteScore += 1;
+                this.whiteScoreEl.textContent = this.whiteScore;
+              } else {
+                this.blackScore += 1;
+                this.blackScoreEl.textContent = this.blackScore;
+              }
+
+              // Erase the physical pawn from state
+              this.boardState[capturedPawnRow][col] = null;
+            }
+
+            // Track if a two-square pawn push occurred to set the next turn's En Passant target
+            let nextEnPassantSquare = null;
+            if (pieceType === 'p' && Math.abs(from.row - row) === 2) {
+              const middleRow = (from.row + row) / 2;
+              nextEnPassantSquare = { row: middleRow, col: from.col };
+            }
+            // Update data state
+            this.boardState[row][col] = movingPiece;
+            this.boardState[from.row][from.col] = null;
+
+            // Record if King or Rook has moved for future castling checks
+            if (pieceType === 'k') {
+              this.hasMoved[movingPiece[0] + '_k'] = true;
+            }
+            if (pieceType === 'r') {
+              const color = movingPiece[0];
+              if (from.row === (color === 'w' ? 7 : 0)) {
+                if (from.col === 0) this.hasMoved[color + '_r_left'] = true;
+                if (from.col === 7) this.hasMoved[color + '_r_right'] = true;
+              }
+            }
+            
+            // Switch active turn, update En Passant targets, and evaluate check status
+            if (this.gameOver) {
+              document.querySelector('.turn-indicator').innerHTML = this.winnerAnnouncement;
+            } else {
+              this.turn = this.turn === 'w' ? 'b' : 'w';
+              this.enPassantSquare = nextEnPassantSquare;
+              
+              const whiteCheck = this.isKingInCheck('w');
+              const blackCheck = this.isKingInCheck('b');
+              let label = this.turn === 'w' ? 'White' : 'Black';
+              if (whiteCheck) label += ' | White in Check';
+              if (blackCheck) label += ' | Black in Check';
+              this.turnTextEl.textContent = label;
+            }
+
+            // Update DOM to target position (FLIP: "Last" state)
+            this.renderPieces();
+
+            // Find the piece at its new target square
+            const newPieceEl = this.squares[row][col].querySelector('.piece');
+            if (newPieceEl) {
+              const lastRect = newPieceEl.getBoundingClientRect();
+
+              // Calculate translation delta (FLIP: "Invert" state)
+              const deltaX = firstRect.left - lastRect.left;
+              const deltaY = firstRect.top - lastRect.top;
+
+              // Position the piece back to its starting spot instantly
+              newPieceEl.style.transition = 'none';
+              newPieceEl.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+
+              // Force browser layout calculation (reflow)
+              newPieceEl.offsetWidth;
+
+              // Play translation to (0,0) smoothly (FLIP: "Play" state)
+              newPieceEl.style.transition = 'transform 0.25s cubic-bezier(0.25, 1, 0.5, 1)';
+              newPieceEl.style.transform = 'translate(0, 0)';
+
+              // Clean up temporary styles after animation finishes
+              newPieceEl.addEventListener('transitionend', () => {
+                newPieceEl.style.transition = '';
+                newPieceEl.style.transform = '';
+              }, { once: true });
+            }
+          } else {
+            
+            // Fallback update without animation if element is missing
+            this.boardState[row][col] = movingPiece;
+            this.boardState[from.row][from.col] = null;
+            
+            if (this.gameOver) {
+              document.querySelector('.turn-indicator').innerHTML = this.winnerAnnouncement;
+            } else {
+              this.turn = this.turn === 'w' ? 'b' : 'w';
+              this.enPassantSquare = nextEnPassantSquare;
+              
+              const whiteCheck = this.isKingInCheck('w');
+              const blackCheck = this.isKingInCheck('b');
+              let label = this.turn === 'w' ? 'White' : 'Black';
+              if (whiteCheck) label += ' | White in Check';
+              if (blackCheck) label += ' | Black in Check';
+              this.turnTextEl.textContent = label;
+            }
+
+            this.renderPieces();
+          }
+        }
+      }
+    }
+
+    // Initialize the empty board generator
+    const board = new EmptyChessBoard('chessboard');
+  </script>
+</body>
+</html>
