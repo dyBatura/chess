@@ -1,5 +1,6 @@
 EmptyChessBoard.prototype.handleSquareClick = function(row, col) {
   // ... your function code ...
+  
   if (this.gameOver) return;
   const pieceCode = this.boardState[row][col];
 
@@ -60,6 +61,27 @@ EmptyChessBoard.prototype.handleSquareClick = function(row, col) {
       if (!this.isValidKingMove(from, { row, col }, color)) return;
     }
 
+    // 4. Simulate the move to verify if the active King is still under attack after the turn
+    const originalTarget = this.boardState[row][col];
+    
+    // Temporarily apply the move on the board state
+    this.boardState[row][col] = movingPiece;
+    this.boardState[from.row][from.col] = null;
+    // Append the move to the visual history panel
+    this.addMoveToHistory(from, { row, col }, movingPiece);
+    
+    const kingUnderAttack = this.isKingInCheck(this.turn);
+    
+    // Revert the temporary move back to original state
+    this.boardState[from.row][from.col] = movingPiece;
+    this.boardState[row][col] = originalTarget;
+    
+    // If the active King remains under attack, forbid the move and show a warning alert
+    if (kingUnderAttack) {
+      alert("Invalid Move! Your King is under attack!");
+      return; // Forcefully block the turn and preserve active piece selection
+    }
+
     // Clear active selection states (only after the move is validated)
     this.squares[from.row][from.col].classList.remove('selected');
     this.selectedSquare = null;
@@ -95,29 +117,6 @@ EmptyChessBoard.prototype.handleSquareClick = function(row, col) {
       } else if (col === 2) { // Queenside
         this.boardState[rowNum][3] = this.boardState[rowNum][0];
         this.boardState[rowNum][0] = null;
-      }
-    }
-
-    // 4. Simulate the move to verify if the active King is still under attack after the turn
-    const originalTarget = this.boardState[row][col];
-    
-    // Temporarily apply the move on the board state
-    this.boardState[row][col] = movingPiece;
-    this.boardState[from.row][from.col] = null;
-    // Append the move to the visual history panel
-    this.addMoveToHistory(from, { row, col }, movingPiece);
-    
-    const kingUnderAttack = this.isKingInCheck(this.turn);
-    
-    // Revert the temporary move back to original state
-    this.boardState[from.row][from.col] = movingPiece;
-    this.boardState[row][col] = originalTarget;
-    
-    // If the active King remains under attack, trigger a pop-up and block the turn
-    if (kingUnderAttack) {
-      const proceed = confirm("Your King is still under attack!");
-      if (!proceed) {
-        return; // Abort turn and preserve active piece selection
       }
     }
 

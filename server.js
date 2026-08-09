@@ -1,34 +1,38 @@
 const WebSocket = require('ws');
 const server = new WebSocket.Server({ port: process.env.PORT || 8080 });
 
-let players = [];
+let players = []; // Stores player objects: { socket, color }
 
 server.on('connection', (socket) => {
-  // Only allow up to 2 players in the room
+  // Reject connection if room is already full
   if (players.length >= 2) {
     socket.send(JSON.stringify({ type: 'system', message: 'Room full' }));
     socket.close();
     return;
   }
 
-  players.push(socket);
+  // Determine which color is currently missing in the room
+  const hasWhite = players.some(p => p.color === 'w');
+  const assignedColor = hasWhite ? 'b' : 'w';
+
+  // Store the socket connection along with its assigned color
+  players.push({ socket, color: assignedColor });
   
-  // First connected is White, second is Black
-  const assignedColor = players.length === 1 ? 'w' : 'b';
   socket.send(JSON.stringify({ type: 'init', color: assignedColor }));
 
-  // Listen for moves from one player and forward to the other
+  // Listen for moves and forward them to the opponent
   socket.on('message', (message) => {
-    players.forEach(client => {
-      if (client !== socket && client.readyState === WebSocket.OPEN) {
-        client.send(message.toString());
+    players.forEach(p => {
+      if (p.socket !== socket && p.socket.readyState === WebSocket.OPEN) {
+        p.socket.send(message.toString());
       }
     });
   });
 
   // Handle disconnection
   socket.on('close', () => {
-    players = players.filter(client => client !== socket);
+    // Remove only the player who disconnected
+    players = players.filter(p => p.socket !== socket);
   });
 });
 

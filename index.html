@@ -94,33 +94,59 @@
       position: relative; /* Forces absolute coordinates to align within this square */
     }
 
-    /* Coordinates styled with high contrast and forced topmost layer rendering */
+    /* Base Coordinates Styles */
     .coordinate {
       position: absolute;
       font-size: min(2.2vw, 13px);
       font-weight: bold;
       pointer-events: none; 
       user-select: none;
-      z-index: 5; /* Forces labels to render on top of the piece layer */
+      z-index: 5;
     }
 
-    .coordinate.rank {
+    /* Default (White): Hide all coordinates initially */
+    .square .coordinate.rank { display: none; }
+    .square .coordinate.file { display: none; }
+
+    /* Default (White): Show ranks on leftmost column (col-0) and files on bottom row (row-7) */
+    .square.col-0 .coordinate.rank { 
+      display: block; 
       top: 4px;
       left: 6px;
     }
-
-    .coordinate.file {
+    .square.row-7 .coordinate.file { 
+      display: block; 
       bottom: 4px;
       right: 6px;
     }
 
+    /* Flipped (Black): Hide White coordinates and show visual leftmost column (col-7) and visual bottom row (row-0) */
+    #chessboard.flipped .square.col-0 .coordinate.rank { display: none; }
+    #chessboard.flipped .square.row-7 .coordinate.file { display: none; }
+    #chessboard.flipped .square.col-7 .coordinate.rank { display: block; }
+    #chessboard.flipped .square.row-0 .coordinate.file { display: block; }
+
+    /* Flipped (Black): Apply standard alignment (since squares are counter-rotated upright) */
+    #chessboard.flipped .square.col-7 .coordinate.rank {
+      top: 4px;
+      left: 6px;
+      bottom: auto;
+      right: auto;
+    }
+    #chessboard.flipped .square.row-0 .coordinate.file {
+      bottom: 4px;
+      right: 6px;
+      top: auto;
+      left: auto;
+    }
+
     /* Sharp, readable high-contrast colors */
     .light .coordinate {
-      color: #8b5a2b; /* Deep dark brown for high visibility on light squares */
+      color: #8b5a2b;
     }
 
     .dark .coordinate {
-      color: #ffebd3; /* Warm off-white for high visibility on dark squares */
+      color: #ffebd3;
     }
     /* Sidebar History Panel Styling */
     .history-panel {
@@ -196,14 +222,24 @@
       z-index: 3;
       pointer-events: none;
     }
+    /* Rotates the entire grid layout */
+    #chessboard.flipped {
+      transform: rotate(180deg);
+    }
+
+    /* Counter-rotates internal elements so pieces/coordinates are not upside down */
+    #chessboard.flipped .square {
+      transform: rotate(180deg);
+    }
   </style>
 </head>
 <body>
   <div class="turn-indicator">
-    Turn: <span id="turn-text">White</span> 
-    | White Score: <span id="white-score">0</span> 
-    | Black Score: <span id="black-score">0</span>
-  </div>
+  You are: <span id="player-color-text">Connecting...</span> |
+  Turn: <span id="turn-text">White</span> 
+  | White Score: <span id="white-score">0</span> 
+  | Black Score: <span id="black-score">0</span>
+</div>
   <div class="game-container">
     <div id="chessboard"></div>
     
@@ -277,15 +313,21 @@
           
           if (data.type === 'init') {
             this.playerColor = data.color;
-            console.log(`Connected. You are playing as: ${this.playerColor === 'w' ? 'White' : 'Black'}`);
+            this.playerColorTextEl.textContent = this.playerColor === 'w' ? 'White' : 'Black';
+            
+            // Rotate the board layout if the server assigned you Black
+            if (this.playerColor === 'b') {
+              this.container.classList.add('flipped');
+            }
           } else if (data.from && data.to) {
             // Apply opponent's remote move by simulating clicks
             this.isRemoteMove = true;
-            this.handleSquareClick(data.from.row, data.from.col); // Click 1: Select
-            this.handleSquareClick(data.to.row, data.to.col);     // Click 2: Move
+            this.handleSquareClick(data.from.row, data.from.col);
+            this.handleSquareClick(data.to.row, data.to.col);
             this.isRemoteMove = false;
           }
         };
+        this.playerColorTextEl = document.getElementById('player-color-text');
       }
 
       clearPossibleMoves() {
@@ -345,6 +387,10 @@
             const square = document.createElement('div');
             square.classList.add('square');
 
+            // Add boundary tracking classes for CSS coordinate management
+            square.classList.add(`row-${row}`);
+            square.classList.add(`col-${col}`);
+
             // Set alternating colors
             const isLight = (row + col) % 2 === 0;
             square.classList.add(isLight ? 'light' : 'dark');
@@ -353,16 +399,16 @@
             square.dataset.row = row;
             square.dataset.col = col;
 
-            // 1. Add Rank numbers (8-1) to the leftmost column (Col 0)
-            if (col === 0) {
+            // Add Rank numbers (8-1) to leftmost (col-0) and rightmost (col-7) columns
+            if (col === 0 || col === 7) {
               const rankLabel = document.createElement('span');
               rankLabel.classList.add('coordinate', 'rank');
               rankLabel.textContent = 8 - row;
               square.appendChild(rankLabel);
             }
 
-            // 2. Add File letters (a-h) to the bottom row (Row 7)
-            if (row === 7) {
+            // Add File letters (a-h) to top (row-0) and bottom (row-7) rows
+            if (row === 0 || row === 7) {
               const fileLabel = document.createElement('span');
               fileLabel.classList.add('coordinate', 'file');
               fileLabel.textContent = files[col];
