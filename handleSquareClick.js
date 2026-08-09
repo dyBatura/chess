@@ -5,13 +5,16 @@ EmptyChessBoard.prototype.handleSquareClick = function(row, col) {
 
   // Case 1: No piece is currently selected
   if (this.selectedSquare === null) {
-    // Only allow selecting a piece that belongs to the active turn
-    if (pieceCode && pieceCode[0] === this.turn) {
+    // Only allow selecting pieces matching your active turn AND assigned multiplayer color
+    const isMyPiece = pieceCode && pieceCode[0] === this.turn;
+    const isMyMultiplayerColor = this.isRemoteMove || (this.playerColor === null || pieceCode[0] === this.playerColor);
+
+    if (isMyPiece && isMyMultiplayerColor) {
       this.selectedSquare = { row, col };
       this.squares[row][col].classList.add('selected');
       this.showPossibleMoves({ row, col });
     }
-  } 
+  }
   // Case 2: A piece is already selected
   else {
     const from = this.selectedSquare;
@@ -156,7 +159,10 @@ EmptyChessBoard.prototype.handleSquareClick = function(row, col) {
       // Update data state
       this.boardState[row][col] = movingPiece;
       this.boardState[from.row][from.col] = null;
-
+      // Send your local move coordinates to the server so the opponent can replicate them
+      if (!this.isRemoteMove && this.socket.readyState === WebSocket.OPEN) {
+        this.socket.send(JSON.stringify({ from, to: { row, col } }));
+      }
       // Record if King or Rook has moved for future castling checks
       if (pieceType === 'k') {
         this.hasMoved[movingPiece[0] + '_k'] = true;
@@ -218,6 +224,10 @@ EmptyChessBoard.prototype.handleSquareClick = function(row, col) {
       // Fallback update without animation if element is missing
       this.boardState[row][col] = movingPiece;
       this.boardState[from.row][from.col] = null;
+      // Send your local move coordinates to the server so the opponent can replicate them
+      if (!this.isRemoteMove && this.socket.readyState === WebSocket.OPEN) {
+        this.socket.send(JSON.stringify({ from, to: { row, col } }));
+      }
       // Append the move to the visual history panel
       this.addMoveToHistory(from, { row, col }, movingPiece);
       

@@ -266,6 +266,26 @@
         };
         this.historyCount = 0;
         this.currentMoveRow = null;
+        this.isRemoteMove = false; // Flag to prevent move feedback loops
+        this.playerColor = null;   // Assigned 'w' or 'b' by the server
+
+        // Connect to the WebSocket backend (Replace with your live URL when deployed)
+        this.socket = new WebSocket('ws://localhost:8080');
+
+        this.socket.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === 'init') {
+            this.playerColor = data.color;
+            console.log(`Connected. You are playing as: ${this.playerColor === 'w' ? 'White' : 'Black'}`);
+          } else if (data.from && data.to) {
+            // Apply opponent's remote move by simulating clicks
+            this.isRemoteMove = true;
+            this.handleSquareClick(data.from.row, data.from.col); // Click 1: Select
+            this.handleSquareClick(data.to.row, data.to.col);     // Click 2: Move
+            this.isRemoteMove = false;
+          }
+        };
       }
 
       clearPossibleMoves() {
@@ -621,17 +641,13 @@
       }
     
     }
-
-    // Initialize the empty board generator
-    const board = new EmptyChessBoard('chessboard');
   </script>
   <!-- Load the external method file after the main class is defined -->
   <script src="handleSquareClick.js"></script>
 
   <script>
-    // Initialize the empty board generator (keep this here)
+    // Initialize the empty board generator (only declare this ONCE)
     const board = new EmptyChessBoard('chessboard');
   </script>
-</body>
 </body>
 </html>
