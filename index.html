@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Empty Chessboard Grid</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background-color: #302e2b;
+      font-family: Arial, sans-serif;
+    }
+
+    .game-container {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 20px; /* Spacing between the board and the future panel */
+      width: 95vw;
+      max-width: 1000px;
+    }
+
+    /* Responsive 8x8 Grid Container */
+    #chessboard {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      width: min(85vw, 600px);
+      height: min(85vw, 600px);
+      border: 4px solid #262421;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Square Colors */
+    .light {
+      background-color: #f0d9b5;
+    }
+
+    .dark {
+      background-color: #b58863;
+    }
+
+    /* Hover effect for interaction feedback */
+    .square:hover {
+      filter: brightness(0.95);
+    }
+
+    /* Styling for any piece on the board */
+    .piece {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: min(7vw, 50px);
+      user-select: none;
+      cursor: grab;
+    }
+
+    .piece:active {
+      cursor: grabbing;
+    }
+
+    /* Optional styling states for different piece types/colors */
+    .white-piece {
+      color: #ffffff;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    }
+
+    .black-piece {
+      color: #000000;
+      text-shadow: 0 1px 2px rgba(255, 255, 255, 0.2);
+    }
+    .square.selected {
+      background-color: rgba(247, 247, 105, 0.6) !important;
+    }
+    .turn-indicator {
+      font-size: 1.5rem;
+      color: #ffffff;
+      margin-bottom: 15px;
+      font-weight: bold;
+      user-select: none;
+    }
+    .square {
+      aspect-ratio: 1 / 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative; /* Forces absolute coordinates to align within this square */
+    }
+
+    /* Coordinates styled with high contrast and forced topmost layer rendering */
+    .coordinate {
+      position: absolute;
+      font-size: min(2.2vw, 13px);
+      font-weight: bold;
+      pointer-events: none; 
+      user-select: none;
+      z-index: 5; /* Forces labels to render on top of the piece layer */
+    }
+
+    .coordinate.rank {
+      top: 4px;
+      left: 6px;
+    }
+
+    .coordinate.file {
+      bottom: 4px;
+      right: 6px;
+    }
+
+    /* Sharp, readable high-contrast colors */
+    .light .coordinate {
+      color: #8b5a2b; /* Deep dark brown for high visibility on light squares */
+    }
+
+    .dark .coordinate {
+      color: #ffebd3; /* Warm off-white for high visibility on dark squares */
+    }
+    /* Sidebar History Panel Styling */
+    .history-panel {
+      width: 260px;
+      height: min(85vw, 600px); /* Matches the board's dynamic height */
+      background-color: #262421;
+      border-radius: 4px;
+      display: flex;
+      flex-direction: column;
+      padding: 15px;
+      box-sizing: border-box;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+    }
+
+    .history-panel h3 {
+      margin: 0 0 10px 0;
+      font-size: 1.1rem;
+      color: #bababa;
+      border-bottom: 1px solid #3c3934;
+      padding-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    #moves-list {
+      flex-grow: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.95rem;
+      padding-right: 5px;
+    }
+
+    /* Scrollbar customizations */
+    #moves-list::-webkit-scrollbar {
+      width: 6px;
+    }
+    #moves-list::-webkit-scrollbar-thumb {
+      background-color: #3e3b35;
+      border-radius: 3px;
+    }
+
+    /* Individual Move Rows layout */
+    .move-row {
+      display: flex;
+      justify-content: flex-start;
+      padding: 4px 8px;
+      border-radius: 3px;
+    }
+
+    .move-row:nth-child(odd) {
+      background-color: #2c2a26;
+    }
+
+    .move-num {
+      width: 35px;
+      color: #64625d;
+      font-weight: bold;
+    }
+
+    .white-move, .black-move {
+      width: 90px;
+      color: #e1e1e1;
+    }
+    /* Centered transparent grey dot for valid move targets */
+    .possible-move-dot {
+      width: min(3vw, 20px);
+      height: min(3vw, 20px);
+      background-color: rgba(0, 0, 0, 0.18);
+      border-radius: 50%;
+      position: absolute;
+      z-index: 3;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="turn-indicator">
+    Turn: <span id="turn-text">White</span> 
+    | White Score: <span id="white-score">0</span> 
+    | Black Score: <span id="black-score">0</span>
+  </div>
+  <div class="game-container">
+    <div id="chessboard"></div>
+    
+    <div class="history-panel">
+      <h3>Move History</h3>
+      <div id="moves-list"></div>
+    </div>
+  </div>
+
+  <script>
+    class EmptyChessBoard {
+      constructor(containerId) {
+        this.container = document.getElementById(containerId);
+        this.squares = [];
+        
+        // Unified Unicode dictionary for both colors
+        this.piecesUnicode = {
+          'wr': '♖', 'wn': '♘', 'wb': '♗', 'wq': '♕', 'wk': '♔', 'wp': '♙',
+          'br': '♜', 'bn': '♞', 'bb': '♝', 'bq': '♛', 'bk': '♚', 'bp': '♟'
+        };
+
+        // Full board state configuration
+        this.boardState = [
+          ['br', 'bn', 'bb', 'bq', 'bk', 'bb', 'bn', 'br'],
+          ['bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp'],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          ['wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp'],
+          ['wr', 'wn', 'wb', 'wq', 'wk', 'wb', 'wn', 'wr']
+        ];
+
+        this.createBoard();
+        this.renderPieces();
+        this.selectedSquare = null;
+        this.turn = 'w'; // 'w' for white, 'b' for black
+        this.turnTextEl = document.getElementById('turn-text');
+        // Score tracking state
+        this.whiteScore = 0;
+        this.blackScore = 0;
+        this.whiteScoreEl = document.getElementById('white-score');
+        this.blackScoreEl = document.getElementById('black-score');
+
+        // Chess piece evaluation points
+        this.pieceValues = {
+          'p': 1,
+          'n': 3,
+          'b': 3,
+          'r': 5,
+          'q': 9,
+          'k': 0 // King cannot be legally captured
+        };
+        this.gameOver = false;
+        this.enPassantSquare = null; // Stores { row, col } of the active en passant target square
+        // Add to the bottom of constructor()
+        this.hasMoved = {
+          'w_k': false, 'w_r_left': false, 'w_r_right': false,
+          'b_k': false, 'b_r_left': false, 'b_r_right': false
+        };
+        this.historyCount = 0;
+        this.currentMoveRow = null;
+        this.isRemoteMove = false; // Flag to prevent move feedback loops
+        this.playerColor = null;   // Assigned 'w' or 'b' by the server
+
+        // Connect to the WebSocket backend (Replace with your live URL when deployed)
+        this.socket = new WebSocket('ws://localhost:8080');
+
+        this.socket.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === 'init') {
+            this.playerColor = data.color;
+            console.log(`Connected. You are playing as: ${this.playerColor === 'w' ? 'White' : 'Black'}`);
+          } else if (data.from && data.to) {
+            // Apply opponent's remote move by simulating clicks
+            this.isRemoteMove = true;
+            this.handleSquareClick(data.from.row, data.from.col); // Click 1: Select
+            this.handleSquareClick(data.to.row, data.to.col);     // Click 2: Move
+            this.isRemoteMove = false;
+          }
+        };
+      }
+
+      clearPossibleMoves() {
+        const dots = this.container.querySelectorAll('.possible-move-dot');
+        dots.forEach(dot => dot.remove());
+      }
+
+      showPossibleMoves(from) {
+        this.clearPossibleMoves();
+        const movingPiece = this.boardState[from.row][from.col];
+        const pieceType = movingPiece[1];
+        const color = movingPiece[0];
+
+        for (let row = 0; row < 8; row++) {
+          for (let col = 0; col < 8; col++) {
+            const to = { row, col };
+            const targetPiece = this.boardState[row][col];
+
+            if (targetPiece && targetPiece[0] === color) continue;
+            if (from.row === row && from.col === col) continue;
+
+            let isValid = false;
+            if (pieceType === 'r') isValid = this.isValidRookMove(from, to);
+            else if (pieceType === 'b') isValid = this.isValidBishopMove(from, to);
+            else if (pieceType === 'q') isValid = this.isValidQueenMove(from, to);
+            else if (pieceType === 'n') isValid = this.isValidKnightMove(from, to);
+            else if (pieceType === 'p') isValid = this.isValidPawnMove(from, to, color);
+            else if (pieceType === 'k') isValid = this.isValidKingMove(from, to, color);
+
+            if (!isValid) continue;
+
+            // Simulate turn check
+            const originalTarget = this.boardState[row][col];
+            this.boardState[row][col] = movingPiece;
+            this.boardState[from.row][from.col] = null;
+            const leavesKingInCheck = this.isKingInCheck(color);
+            this.boardState[from.row][from.col] = movingPiece;
+            this.boardState[row][col] = originalTarget;
+
+            if (leavesKingInCheck) continue;
+
+            const dot = document.createElement('div');
+            dot.classList.add('possible-move-dot');
+            this.squares[row][col].appendChild(dot);
+          }
+        }
+      }
+
+      createBoard() {
+        this.container.innerHTML = '';
+        const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+
+        for (let row = 0; row < 8; row++) {
+          this.squares[row] = [];
+          
+          for (let col = 0; col < 8; col++) {
+            const square = document.createElement('div');
+            square.classList.add('square');
+
+            // Set alternating colors
+            const isLight = (row + col) % 2 === 0;
+            square.classList.add(isLight ? 'light' : 'dark');
+
+            // Store coordinate indices in data attributes
+            square.dataset.row = row;
+            square.dataset.col = col;
+
+            // 1. Add Rank numbers (8-1) to the leftmost column (Col 0)
+            if (col === 0) {
+              const rankLabel = document.createElement('span');
+              rankLabel.classList.add('coordinate', 'rank');
+              rankLabel.textContent = 8 - row;
+              square.appendChild(rankLabel);
+            }
+
+            // 2. Add File letters (a-h) to the bottom row (Row 7)
+            if (row === 7) {
+              const fileLabel = document.createElement('span');
+              fileLabel.classList.add('coordinate', 'file');
+              fileLabel.textContent = files[col];
+              square.appendChild(fileLabel);
+            }
+
+            // Simple click listener
+            square.addEventListener('click', () => this.handleSquareClick(row, col));
+
+            this.container.appendChild(square);
+            this.squares[row][col] = square;
+          }
+        }
+      }
+
+      renderPieces() {
+        for (let row = 0; row < 8; row++) {
+          for (let col = 0; col < 8; col++) {
+            const pieceCode = this.boardState[row][col];
+            const square = this.squares[row][col];
+            
+            // Selectively remove only the existing piece element (preserving coordinate spans)
+            const existingPiece = square.querySelector('.piece');
+            if (existingPiece) {
+              existingPiece.remove();
+            }
+
+            if (pieceCode) {
+              const pieceColor = pieceCode[0]; // 'w' or 'b'
+              const pieceEl = document.createElement('div');
+              
+              pieceEl.classList.add('piece');
+              pieceEl.classList.add(pieceColor === 'w' ? 'white-piece' : 'black-piece');
+              
+              pieceEl.textContent = this.piecesUnicode[pieceCode];
+              square.appendChild(pieceEl);
+            }
+          }
+        }
+      }
+      
+      isValidRookMove(from, to) {
+        // Rooks can only move along the same row or the same column
+        if (from.row !== to.row && from.col !== to.col) {
+          return false;
+        }
+
+        // Determine direction step values: -1, 0, or 1
+        const rowStep = from.row === to.row ? 0 : (to.row > from.row ? 1 : -1);
+        const colStep = from.col === to.col ? 0 : (to.col > from.col ? 1 : -1);
+
+        let currentRow = from.row + rowStep;
+        let currentCol = from.col + colStep;
+
+        // Check all squares between the source and target for obstacles
+        while (currentRow !== to.row || currentCol !== to.col) {
+          if (this.boardState[currentRow][currentCol] !== null) {
+            return false; // Path is blocked
+          }
+          currentRow += rowStep;
+          currentCol += colStep;
+        }
+
+        return true;
+      }
+
+      isValidBishopMove(from, to) {
+        const rowDiff = Math.abs(from.row - to.row);
+        const colDiff = Math.abs(from.col - to.col);
+
+        // Bishops must move diagonally
+        if (rowDiff !== colDiff) {
+          return false;
+        }
+
+        // Determine direction step values: -1 or 1
+        const rowStep = to.row > from.row ? 1 : -1;
+        const colStep = to.col > from.col ? 1 : -1;
+
+        let currentRow = from.row + rowStep;
+        let currentCol = from.col + colStep;
+
+        // Check all squares along the diagonal for obstacles
+        while (currentRow !== to.row || currentCol !== to.col) {
+          if (this.boardState[currentRow][currentCol] !== null) {
+            return false; // Path is blocked
+          }
+          currentRow += rowStep;
+          currentCol += colStep;
+        }
+
+        return true;
+      }
+
+      isValidQueenMove(from, to) {
+        return this.isValidRookMove(from, to) || this.isValidBishopMove(from, to);
+      }
+
+      isValidKnightMove(from, to) {
+        const rowDiff = Math.abs(from.row - to.row);
+        const colDiff = Math.abs(from.col - to.col);
+
+        return (rowDiff === 2 && colDiff === 1) || (rowDiff === 1 && colDiff === 2);
+      }
+
+      isValidPawnMove(from, to, color) {
+        const rowDiff = to.row - from.row;
+        const colDiff = Math.abs(to.col - from.col);
+        const targetPiece = this.boardState[to.row][to.col];
+
+        // Check if target is the active en passant square
+        const isEnPassant = this.enPassantSquare && 
+                            to.row === this.enPassantSquare.row && 
+                            to.col === this.enPassantSquare.col;
+
+        if (color === 'w') {
+          if (rowDiff === -1 && colDiff === 0 && !targetPiece) {
+            return true;
+          }
+          if (from.row === 6 && rowDiff === -2 && colDiff === 0 && !targetPiece) {
+            if (this.boardState[5][from.col] === null) {
+              return true;
+            }
+          }
+          // Allow diagonal movement if there is a target piece OR if it is an En Passant capture
+          if (rowDiff === -1 && colDiff === 1 && (targetPiece || isEnPassant)) {
+            return true;
+          }
+        } else if (color === 'b') {
+          if (rowDiff === 1 && colDiff === 0 && !targetPiece) {
+            return true;
+          }
+          if (from.row === 1 && rowDiff === 2 && colDiff === 0 && !targetPiece) {
+            if (this.boardState[2][from.col] === null) {
+              return true;
+            }
+          }
+          // Allow diagonal movement if there is a target piece OR if it is an En Passant capture
+          if (rowDiff === 1 && colDiff === 1 && (targetPiece || isEnPassant)) {
+            return true;
+          }
+        }
+
+        return false;
+      }
+
+      isValidKingMove(from, to, color) {
+        const rowDiff = Math.abs(from.row - to.row);
+        const colDiff = Math.abs(from.col - to.col);
+
+        // Standard 1-square movement validation
+        if (rowDiff <= 1 && colDiff <= 1) {
+          return true; // Step safety check is removed
+        }
+
+        // Castling movement validation
+        if (rowDiff === 0 && colDiff === 2) {
+          return this.isValidCastling(from, to, color);
+        }
+
+        return false;
+      }
+
+      isValidCastling(from, to, color) {
+        if (this.hasMoved[color + '_k']) return false;
+
+        const row = color === 'w' ? 7 : 0;
+        const opponentColor = color === 'w' ? 'b' : 'w';
+
+        // 1. Kingside (Short Castling)
+        if (to.row === row && to.col === 6) {
+          if (this.hasMoved[color + '_r_right']) return false;
+          if (this.boardState[row][5] !== null || this.boardState[row][6] !== null) return false;
+          
+          // Safety checks: King must not be in check, pass through check, or land in check
+          if (this.isSquareUnderAttack({ row, col: 4 }, opponentColor)) return false;
+          if (this.isSquareUnderAttack({ row, col: 5 }, opponentColor)) return false;
+          if (this.isSquareUnderAttack({ row, col: 6 }, opponentColor)) return false;
+          
+          return true;
+        }
+
+        // 2. Queenside (Long Castling)
+        if (to.row === row && to.col === 2) {
+          if (this.hasMoved[color + '_r_left']) return false;
+          if (this.boardState[row][1] !== null || this.boardState[row][2] !== null || this.boardState[row][3] !== null) return false;
+          
+          // Safety checks: King must not be in check, pass through check, or land in check
+          if (this.isSquareUnderAttack({ row, col: 4 }, opponentColor)) return false;
+          if (this.isSquareUnderAttack({ row, col: 3 }, opponentColor)) return false;
+          if (this.isSquareUnderAttack({ row, col: 2 }, opponentColor)) return false;
+          
+          return true;
+        }
+
+        return false;
+      }
+
+      findKing(color) {
+        const kingCode = color + 'k';
+        for (let row = 0; row < 8; row++) {
+          for (let col = 0; col < 8; col++) {
+            if (this.boardState[row][col] === kingCode) {
+              return { row, col };
+            }
+          }
+        }
+        return null;
+      }
+
+      isSquareUnderAttack(target, attackerColor) {
+        for (let row = 0; row < 8; row++) {
+          for (let col = 0; col < 8; col++) {
+            const piece = this.boardState[row][col];
+            if (piece && piece[0] === attackerColor) {
+              const pieceType = piece[1];
+              const from = { row, col };
+
+              if (pieceType === 'r' && this.isValidRookMove(from, target)) return true;
+              if (pieceType === 'b' && this.isValidBishopMove(from, target)) return true;
+              if (pieceType === 'q' && this.isValidQueenMove(from, target)) return true;
+              if (pieceType === 'n' && this.isValidKnightMove(from, target)) return true;
+              if (pieceType === 'p' && this.isValidPawnMove(from, target, attackerColor)) return true;
+            }
+          }
+        }
+        return false;
+      }
+
+      isKingInCheck(color) {
+        const kingPos = this.findKing(color);
+        if (!kingPos) return false;
+        const attackerColor = color === 'w' ? 'b' : 'w';
+        return this.isSquareUnderAttack(kingPos, attackerColor);
+      }
+
+      addMoveToHistory(from, to, pieceCode) {
+        const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+        const ranks = [8, 7, 6, 5, 4, 3, 2, 1];
+        
+        let moveLabel = '';
+
+        // Check if the move is castling (King moving 2 squares horizontally)
+        if (pieceCode[1] === 'k' && Math.abs(from.col - to.col) === 2) {
+          moveLabel = to.col === 6 ? '0-0' : '0-0-0';
+        } else {
+          // Standard move notation
+          const fromNotation = files[from.col] + ranks[from.row];
+          const toNotation = files[to.col] + ranks[to.row];
+          const pieceLetter = pieceCode[1] === 'p' ? '' : pieceCode[1].toUpperCase();
+          moveLabel = pieceLetter + fromNotation + '→' + toNotation;
+        }
+        
+        const movesListEl = document.getElementById('moves-list');
+        const color = pieceCode[0]; // 'w' or 'b'
+        
+        if (color === 'w') {
+          // Generate new step row for the White/Black turn pair
+          const moveRow = document.createElement('div');
+          moveRow.classList.add('move-row');
+          
+          const moveIndex = Math.floor(this.historyCount / 2) + 1;
+          moveRow.innerHTML = `<span class="move-num">${moveIndex}.</span><span class="white-move">${moveLabel}</span><span class="black-move"></span>`;
+          movesListEl.appendChild(moveRow);
+          this.currentMoveRow = moveRow;
+        } else {
+          // Fill the Black cell in the current move row
+          if (this.currentMoveRow) {
+            this.currentMoveRow.querySelector('.black-move').textContent = moveLabel;
+          }
+        }
+        
+        this.historyCount++;
+        // Keep scrolling panel down as moves increase
+        movesListEl.scrollTop = movesListEl.scrollHeight;
+      }
+    
+    }
+  </script>
+  <!-- Load the external method file after the main class is defined -->
+  <script src="handleSquareClick.js"></script>
+
+  <script>
+    // Initialize the empty board generator (only declare this ONCE)
+    const board = new EmptyChessBoard('chessboard');
+  </script>
+</body>
+</html>
