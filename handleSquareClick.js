@@ -68,6 +68,10 @@ EmptyChessBoard.prototype.handleSquareClick = function(row, col) {
       if (!this.isValidKingMove(from, { row, col }, color)) return;
     }
 
+    // save move to history
+
+    this.addMoveToHistory(from, { row, col }, movingPiece);
+    
     // Clear active selection states (only after the move is validated)
     this.squares[from.row][from.col].classList.remove('selected');
     this.selectedSquare = null;
