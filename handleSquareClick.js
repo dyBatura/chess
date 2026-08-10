@@ -20,7 +20,6 @@ EmptyChessBoard.prototype.handleSquareClick = function(row, col) {
   else {
     const from = this.selectedSquare;
     const movingPiece = this.boardState[from.row][from.col];
-    this.clearPossibleMoves();
 
     // 1. If clicking a piece of the SAME color, switch selection to that piece instead
     if (pieceCode && pieceCode[0] === movingPiece[0]) {
@@ -38,7 +37,15 @@ EmptyChessBoard.prototype.handleSquareClick = function(row, col) {
       return;
     }
 
-    // 3. Enforce movement validation rules
+    // 3. Only allow moves to squares that contain a valid grey move dot
+    const targetSquare = this.squares[row][col];
+    const hasDot = targetSquare.querySelector('.possible-move-dot');
+    if (!hasDot) {
+      return; // Silently ignore the click if it's not a valid move dot
+    }
+    this.clearPossibleMoves();
+
+    // 4. Enforce movement validation rules
     const pieceType = movingPiece[1];
     if (pieceType === 'r') {
       if (!this.isValidRookMove(from, { row, col })) return;
@@ -59,27 +66,6 @@ EmptyChessBoard.prototype.handleSquareClick = function(row, col) {
     if (pieceType === 'k') {
       const color = movingPiece[0];
       if (!this.isValidKingMove(from, { row, col }, color)) return;
-    }
-
-    // 4. Simulate the move to verify if the active King is still under attack after the turn
-    const originalTarget = this.boardState[row][col];
-    
-    // Temporarily apply the move on the board state
-    this.boardState[row][col] = movingPiece;
-    this.boardState[from.row][from.col] = null;
-    // Append the move to the visual history panel
-    this.addMoveToHistory(from, { row, col }, movingPiece);
-    
-    const kingUnderAttack = this.isKingInCheck(this.turn);
-    
-    // Revert the temporary move back to original state
-    this.boardState[from.row][from.col] = movingPiece;
-    this.boardState[row][col] = originalTarget;
-    
-    // If the active King remains under attack, forbid the move and show a warning alert
-    if (kingUnderAttack) {
-      alert("Invalid Move! Your King is under attack!");
-      return; // Forcefully block the turn and preserve active piece selection
     }
 
     // Clear active selection states (only after the move is validated)
@@ -174,7 +160,7 @@ EmptyChessBoard.prototype.handleSquareClick = function(row, col) {
         }
       }
       
-      // Switch active turn, update En Passant targets, and evaluate check status
+      // Switch active turn, update En Passant targets, and evaluate checkmate/check status
       if (this.gameOver) {
         document.querySelector('.turn-indicator').innerHTML = this.winnerAnnouncement;
       } else {
@@ -183,10 +169,20 @@ EmptyChessBoard.prototype.handleSquareClick = function(row, col) {
         
         const whiteCheck = this.isKingInCheck('w');
         const blackCheck = this.isKingInCheck('b');
-        let label = this.turn === 'w' ? 'White' : 'Black';
-        if (whiteCheck) label += ' | White in Check';
-        if (blackCheck) label += ' | Black in Check';
-        this.turnTextEl.textContent = label;
+        
+        // Checkmate evaluation for the active turn player
+        const activeCheck = this.turn === 'w' ? whiteCheck : blackCheck;
+        if (activeCheck && !this.hasAnyLegalMoves(this.turn)) {
+          this.gameOver = true;
+          const winner = this.turn === 'w' ? 'Black' : 'White';
+          this.winnerAnnouncement = `<strong>Game Over! ${winner} Won by Checkmate!</strong>`;
+          document.querySelector('.turn-indicator').innerHTML = this.winnerAnnouncement;
+        } else {
+          let label = this.turn === 'w' ? 'White' : 'Black';
+          if (whiteCheck) label += ' | White in Check';
+          if (blackCheck) label += ' | Black in Check';
+          this.turnTextEl.textContent = label;
+        }
       }
 
       // Update DOM to target position (FLIP: "Last" state)
@@ -204,6 +200,10 @@ EmptyChessBoard.prototype.handleSquareClick = function(row, col) {
         // Position the piece back to its starting spot instantly
         newPieceEl.style.transition = 'none';
         newPieceEl.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+
+        // Temporarily raise the parent square's stacking index to keep the piece on top of all other squares
+        const targetSquare = this.squares[row][col];
+        targetSquare.style.zIndex = '10';
 
         // Force browser layout calculation (reflow)
         newPieceEl.offsetWidth;
@@ -238,10 +238,20 @@ EmptyChessBoard.prototype.handleSquareClick = function(row, col) {
         
         const whiteCheck = this.isKingInCheck('w');
         const blackCheck = this.isKingInCheck('b');
-        let label = this.turn === 'w' ? 'White' : 'Black';
-        if (whiteCheck) label += ' | White in Check';
-        if (blackCheck) label += ' | Black in Check';
-        this.turnTextEl.textContent = label;
+        
+        // Checkmate evaluation for the active turn player
+        const activeCheck = this.turn === 'w' ? whiteCheck : blackCheck;
+        if (activeCheck && !this.hasAnyLegalMoves(this.turn)) {
+          this.gameOver = true;
+          const winner = this.turn === 'w' ? 'Black' : 'White';
+          this.winnerAnnouncement = `<strong>Game Over! ${winner} Won by Checkmate!</strong>`;
+          document.querySelector('.turn-indicator').innerHTML = this.winnerAnnouncement;
+        } else {
+          let label = this.turn === 'w' ? 'White' : 'Black';
+          if (whiteCheck) label += ' | White in Check';
+          if (blackCheck) label += ' | Black in Check';
+          this.turnTextEl.textContent = label;
+        }
       }
 
       this.renderPieces();

@@ -256,9 +256,20 @@
         this.squares = [];
         
         // Unified Unicode dictionary for both colors
-        this.piecesUnicode = {
-          'wr': '♖', 'wn': '♘', 'wb': '♗', 'wq': '♕', 'wk': '♔', 'wp': '♙',
-          'br': '♜', 'bn': '♞', 'bb': '♝', 'bq': '♛', 'bk': '♚', 'bp': '♟'
+        // High-resolution SVG pieces hosted on Wikimedia Commons
+        this.piecesSVGs = {
+          'wp': 'https://upload.wikimedia.org/wikipedia/commons/4/45/Chess_plt45.svg',
+          'wn': 'https://upload.wikimedia.org/wikipedia/commons/7/70/Chess_nlt45.svg',
+          'wb': 'https://upload.wikimedia.org/wikipedia/commons/b/b1/Chess_blt45.svg',
+          'wr': 'https://upload.wikimedia.org/wikipedia/commons/7/72/Chess_rlt45.svg',
+          'wq': 'https://upload.wikimedia.org/wikipedia/commons/1/15/Chess_qlt45.svg',
+          'wk': 'https://upload.wikimedia.org/wikipedia/commons/4/42/Chess_klt45.svg',
+          'bp': 'https://upload.wikimedia.org/wikipedia/commons/c/c7/Chess_pdt45.svg',
+          'bn': 'https://upload.wikimedia.org/wikipedia/commons/e/ef/Chess_ndt45.svg',
+          'bb': 'https://upload.wikimedia.org/wikipedia/commons/9/98/Chess_bdt45.svg',
+          'br': 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Chess_rdt45.svg',
+          'bq': 'https://upload.wikimedia.org/wikipedia/commons/4/47/Chess_qdt45.svg',
+          'bk': 'https://upload.wikimedia.org/wikipedia/commons/f/f0/Chess_kdt45.svg'
         };
 
         // Full board state configuration
@@ -305,8 +316,13 @@
         this.isRemoteMove = false; // Flag to prevent move feedback loops
         this.playerColor = null;   // Assigned 'w' or 'b' by the server
 
+
+
         // Connect to the WebSocket backend 
+        //this.socket = new WebSocket('ws://localhost:8080');
         this.socket = new WebSocket('wss://chess-d7rf.onrender.com');
+
+
 
         this.socket.onmessage = (event) => {
           const data = JSON.parse(event.data);
@@ -430,20 +446,24 @@
             const pieceCode = this.boardState[row][col];
             const square = this.squares[row][col];
             
-            // Selectively remove only the existing piece element (preserving coordinate spans)
-            const existingPiece = square.querySelector('.piece');
-            if (existingPiece) {
-              existingPiece.remove();
-            }
+            const existingPieces = square.querySelectorAll('.piece');
+            existingPieces.forEach(p => p.remove());
 
             if (pieceCode) {
-              const pieceColor = pieceCode[0]; // 'w' or 'b'
+              const pieceColor = pieceCode[0];
               const pieceEl = document.createElement('div');
               
               pieceEl.classList.add('piece');
               pieceEl.classList.add(pieceColor === 'w' ? 'white-piece' : 'black-piece');
               
-              pieceEl.textContent = this.piecesUnicode[pieceCode];
+              // Apply the vector piece image with high-performance CSS styling
+              pieceEl.style.backgroundImage = `url(${this.piecesSVGs[pieceCode]})`;
+              pieceEl.style.backgroundSize = 'contain';
+              pieceEl.style.backgroundRepeat = 'no-repeat';
+              pieceEl.style.backgroundPosition = 'center';
+              pieceEl.style.width = '84%';  // Scales piece beautifully inside the square boundaries
+              pieceEl.style.height = '84%';
+              
               square.appendChild(pieceEl);
             }
           }
@@ -686,6 +706,51 @@
         movesListEl.scrollTop = movesListEl.scrollHeight;
       }
     
+      hasAnyLegalMoves(color) {
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) {
+            const piece = this.boardState[r][c];
+            if (piece && piece[0] === color) {
+              const from = { row: r, col: c };
+              const pieceType = piece[1];
+
+              for (let tr = 0; tr < 8; tr++) {
+                for (let tc = 0; tc < 8; tc++) {
+                  const to = { row: tr, col: tc };
+                  const targetPiece = this.boardState[tr][tc];
+
+                  if (targetPiece && targetPiece[0] === color) continue;
+                  if (r === tr && c === tc) continue;
+
+                  let isValid = false;
+                  if (pieceType === 'r') isValid = this.isValidRookMove(from, to);
+                  else if (pieceType === 'b') isValid = this.isValidBishopMove(from, to);
+                  else if (pieceType === 'q') isValid = this.isValidQueenMove(from, to);
+                  else if (pieceType === 'n') isValid = this.isValidKnightMove(from, to);
+                  else if (pieceType === 'p') isValid = this.isValidPawnMove(from, to, color);
+                  else if (pieceType === 'k') isValid = this.isValidKingMove(from, to, color);
+
+                  if (!isValid) continue;
+
+                  // Simulate the move to verify if it successfully resolves check
+                  const originalTarget = this.boardState[tr][tc];
+                  this.boardState[tr][tc] = piece;
+                  this.boardState[r][c] = null;
+                  const leavesKingInCheck = this.isKingInCheck(color);
+                  this.boardState[r][c] = piece;
+                  this.boardState[tr][tc] = originalTarget;
+
+                  if (!leavesKingInCheck) {
+                    return true; // Found at least one legal escape path!
+                  }
+                }
+              }
+            }
+          }
+        }
+        return false; // No legal escape paths found (Checkmate)
+      }
+
     }
   </script>
   <!-- Load the external method file after the main class is defined -->
