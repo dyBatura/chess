@@ -305,8 +305,8 @@
         this.isRemoteMove = false; // Flag to prevent move feedback loops
         this.playerColor = null;   // Assigned 'w' or 'b' by the server
 
-        // Connect to the WebSocket backend (Replace with your live URL when deployed)
-        this.socket = new WebSocket('ws://localhost:8080');
+        // Connect to the WebSocket backend 
+        this.socket = new WebSocket('wss://chess-d7rf.onrender.com');
 
         this.socket.onmessage = (event) => {
           const data = JSON.parse(event.data);
