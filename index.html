@@ -422,8 +422,8 @@
 
 
         // Connect to the WebSocket backend 
-        //this.socket = new WebSocket('ws://localhost:8080');
-        this.socket = new WebSocket('wss://chess-d7rf.onrender.com');
+        this.socket = new WebSocket('ws://localhost:8080');
+        //this.socket = new WebSocket('wss://chess-d7rf.onrender.com');
 
 
 
@@ -443,8 +443,12 @@
             document.getElementById('close-menu-btn').classList.remove('hidden');
             this.pauseMenuEl.classList.add('hidden');
           } else if (data.type === 'pause') {
-            // Automatically reload your page if the opponent disconnects or reloads to keep both boards in sync
-            window.location.reload();
+            // Only trigger a page reload if the game was actively in progress (the waiting menu was hidden)
+            const isGameActive = this.pauseMenuEl.classList.contains('hidden');
+            if (isGameActive) {
+              window.location.reload();
+            }
+  
           } else if (data.from && data.to) {
             // Apply opponent's remote move by simulating clicks
             this.isRemoteMove = true;
