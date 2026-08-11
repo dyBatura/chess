@@ -19,6 +19,10 @@ server.on('connection', (socket) => {
   players.push({ socket, color: assignedColor });
   
   socket.send(JSON.stringify({ type: 'init', color: assignedColor }));
+  // If we now have exactly 2 players, notify both to start
+  if (players.length === 2) {
+    players.forEach(p => p.socket.send(JSON.stringify({ type: 'start' })));
+  }
 
   // Listen for moves and forward them to the opponent
   socket.on('message', (message) => {
@@ -33,6 +37,8 @@ server.on('connection', (socket) => {
   socket.on('close', () => {
     // Remove only the player who disconnected
     players = players.filter(p => p.socket !== socket);
+    // Notify any remaining player to show the pause menu and wait
+    players.forEach(p => p.socket.send(JSON.stringify({ type: 'pause' })));
   });
 });
 

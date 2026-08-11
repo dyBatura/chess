@@ -231,9 +231,112 @@
     #chessboard.flipped .square {
       transform: rotate(180deg);
     }
+    /* Pause Menu Overlay Layout */
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: rgba(0, 0, 0, 0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000; /* Forces overlay on top of all chess elements */
+    }
+
+    .overlay.hidden {
+      display: none;
+    }
+
+    .menu-content {
+      background-color: #262421;
+      border: 2px solid #3c3934;
+      padding: 30px;
+      border-radius: 8px;
+      text-align: center;
+      color: #ffffff;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+      max-width: 400px;
+      width: 85vw;
+    }
+
+    .menu-content h2 {
+      margin-top: 0;
+      color: #ffebd3;
+    }
+
+    .menu-content p {
+      color: #bababa;
+      line-height: 1.4;
+    }
+
+    /* Loading Spinner */
+    .spinner {
+      margin: 25px auto 0 auto;
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      border-top-color: #ffebd3;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    /* Menu Buttons Layout */
+    .menu-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 25px;
+    }
+
+    .menu-btn {
+      padding: 10px 18px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      background-color: #ffdca3;
+      color: #262421;
+      transition: background-color 0.15s ease;
+    }
+
+    .menu-btn:hover {
+      background-color: #ffebd3;
+    }
+
+    /* Secondary Button (Close Menu) */
+    .menu-btn.secondary {
+      background-color: #3c3934;
+      color: #bababa;
+      border: 1px solid #4a4740;
+    }
+
+    .menu-btn.secondary:hover {
+      background-color: #44413d;
+      color: #ffffff;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
+  <!-- Real-time lobby pause menu overlay -->
+  <div id="pause-menu" class="overlay">
+    <div class="menu-content">
+      <h2>Waiting for Opponent</h2>
+      <p>The game will start automatically when the second player connects.</p>
+      <div class="spinner"></div>
+      
+      <!-- Interactive Menu Buttons -->
+      <div class="menu-buttons">
+        <button id="reload-btn" class="menu-btn">Reload Page</button>
+        <button id="close-menu-btn" class="menu-btn secondary">Close Menu</button>
+      </div>
+    </div>
+  </div>
   <div class="turn-indicator">
   You are: <span id="player-color-text">Connecting...</span> |
   Turn: <span id="turn-text">White</span> 
@@ -335,6 +438,13 @@
             if (this.playerColor === 'b') {
               this.container.classList.add('flipped');
             }
+          } else if (data.type === 'start') {
+            // Restore the close menu button and hide the overlay when both players are connected
+            document.getElementById('close-menu-btn').classList.remove('hidden');
+            this.pauseMenuEl.classList.add('hidden');
+          } else if (data.type === 'pause') {
+            // Automatically reload your page if the opponent disconnects or reloads to keep both boards in sync
+            window.location.reload();
           } else if (data.from && data.to) {
             // Apply opponent's remote move by simulating clicks
             this.isRemoteMove = true;
@@ -344,6 +454,34 @@
           }
         };
         this.playerColorTextEl = document.getElementById('player-color-text');
+        this.pauseMenuEl = document.getElementById('pause-menu');
+        document.getElementById('reload-btn').addEventListener('click', () => {
+          window.location.reload();
+        });
+
+        document.getElementById('close-menu-btn').addEventListener('click', () => {
+          this.pauseMenuEl.classList.add('hidden');
+        });
+        // Map the pause menu text elements
+        this.menuTitleEl = this.pauseMenuEl.querySelector('.menu-content h2');
+        this.menuTextEl = this.pauseMenuEl.querySelector('.menu-content p');
+
+        // Initial state: you are connecting to the server
+        this.menuTitleEl.textContent = "Connecting to Server";
+        this.menuTextEl.textContent = "Please wait while your browser establishes a secure connection to the multiplayer server.";
+
+        // Triggered when your browser successfully establishes a connection with the backend
+        this.socket.onopen = () => {
+          this.menuTitleEl.textContent = "Waiting for Opponent";
+          this.menuTextEl.textContent = "The game will start automatically when the second player connects.";
+        };
+
+        // Triggered if your connection to the server is lost or fails to open
+        this.socket.onclose = () => {
+          this.pauseMenuEl.classList.remove('hidden');
+          this.menuTitleEl.textContent = "Disconnected from Server";
+          this.menuTextEl.textContent = "Connection lost. Please click 'Reload Page' to attempt reconnection.";
+        };
       }
 
       clearPossibleMoves() {
