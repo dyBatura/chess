@@ -357,6 +357,14 @@
       constructor(containerId) {
         this.container = document.getElementById(containerId);
         this.squares = [];
+        this.playerColorTextEl = document.getElementById('player-color-text');
+        this.pauseMenuEl = document.getElementById('pause-menu');
+        this.menuTitleEl = this.pauseMenuEl.querySelector('.menu-content h2');
+        this.menuTextEl = this.pauseMenuEl.querySelector('.menu-content p');
+
+        // Set initial connecting texts (keep these here too)
+        this.menuTitleEl.textContent = "Connecting to Server";
+        this.menuTextEl.textContent = "Please wait while your browser establishes a secure connection to the multiplayer server.";
         
         // Unified Unicode dictionary for both colors
         // High-resolution SVG pieces hosted on Wikimedia Commons
@@ -422,8 +430,8 @@
 
 
         // Connect to the WebSocket backend 
-        this.socket = new WebSocket('ws://localhost:8080');
-        //this.socket = new WebSocket('wss://chess-d7rf.onrender.com');
+        //this.socket = new WebSocket('ws://localhost:8080');
+        this.socket = new WebSocket('wss://chess-d7rf.onrender.com');
 
 
 
@@ -457,8 +465,7 @@
             this.isRemoteMove = false;
           }
         };
-        this.playerColorTextEl = document.getElementById('player-color-text');
-        this.pauseMenuEl = document.getElementById('pause-menu');
+        
         document.getElementById('reload-btn').addEventListener('click', () => {
           window.location.reload();
         });
@@ -467,13 +474,10 @@
           this.pauseMenuEl.classList.add('hidden');
         });
         // Map the pause menu text elements
-        this.menuTitleEl = this.pauseMenuEl.querySelector('.menu-content h2');
-        this.menuTextEl = this.pauseMenuEl.querySelector('.menu-content p');
+        
 
         // Initial state: you are connecting to the server
-        this.menuTitleEl.textContent = "Connecting to Server";
-        this.menuTextEl.textContent = "Please wait while your browser establishes a secure connection to the multiplayer server.";
-
+        
         // Triggered when your browser successfully establishes a connection with the backend
         this.socket.onopen = () => {
           this.menuTitleEl.textContent = "Waiting for Opponent";
