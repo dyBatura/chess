@@ -451,13 +451,15 @@
             document.getElementById('close-menu-btn').classList.remove('hidden');
             this.pauseMenuEl.classList.add('hidden');
           } else if (data.type === 'pause') {
-            console.log("--- Received 'pause' command from server ---");
-            const isGameActive = this.pauseMenuEl.classList.contains('hidden');
-            console.log("Is game currently active?", isGameActive);
-            if (isGameActive) {
-              console.log("Executing page reload...");
-              window.location.reload();
-            }
+            // Reset the board state silently in JS instead of reloading the page to prevent network feedback loops
+            this.resetGame();
+            
+            // Show the waiting menu overlay and block gameplay
+            this.pauseMenuEl.classList.remove('hidden');
+            document.getElementById('close-menu-btn').classList.add('hidden');
+            
+            this.menuTitleEl.textContent = "Opponent Disconnected";
+            this.menuTextEl.textContent = "Your opponent left or reloaded the game. Waiting for a new player to connect...";
   
           } else if (data.from && data.to) {
             // Apply opponent's remote move by simulating clicks
@@ -586,6 +588,41 @@
             this.squares[row][col] = square;
           }
         }
+      }
+
+      resetGame() {
+        this.boardState = [
+          ['br', 'bn', 'bb', 'bq', 'bk', 'bb', 'bn', 'br'],
+          ['bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp', 'bp'],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          [null, null, null, null, null, null, null, null],
+          ['wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp', 'wp'],
+          ['wr', 'wn', 'wb', 'wq', 'wk', 'wb', 'wn', 'wr']
+        ];
+        this.turn = 'w';
+        this.gameOver = false;
+        this.whiteScore = 0;
+        this.blackScore = 0;
+        this.whiteScoreEl.textContent = '0';
+        this.blackScoreEl.textContent = '0';
+        this.enPassantSquare = null;
+        this.selectedSquare = null;
+        
+        // Reset castling trackers
+        this.hasMoved = {
+          'w_k': false, 'w_r_left': false, 'w_r_right': false,
+          'b_k': false, 'b_r_left': false, 'b_r_right': false
+        };
+        
+        // Clear move history
+        document.getElementById('moves-list').innerHTML = '';
+        this.historyCount = 0;
+        this.currentMoveRow = null;
+
+        this.clearPossibleMoves();
+        this.renderPieces();
       }
 
       renderPieces() {
