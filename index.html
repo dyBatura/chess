@@ -451,9 +451,11 @@
             document.getElementById('close-menu-btn').classList.remove('hidden');
             this.pauseMenuEl.classList.add('hidden');
           } else if (data.type === 'pause') {
-            // Only trigger a page reload if the game was actively in progress (the waiting menu was hidden)
+            console.log("--- Received 'pause' command from server ---");
             const isGameActive = this.pauseMenuEl.classList.contains('hidden');
+            console.log("Is game currently active?", isGameActive);
             if (isGameActive) {
+              console.log("Executing page reload...");
               window.location.reload();
             }
   

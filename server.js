@@ -35,10 +35,14 @@ server.on('connection', (socket) => {
 
   // Handle disconnection
   socket.on('close', () => {
-    // Remove only the player who disconnected
+    console.log("--- Connection Closed ---");
     players = players.filter(p => p.socket !== socket);
-    // Notify any remaining player to show the pause menu and wait
-    players.forEach(p => p.socket.send(JSON.stringify({ type: 'pause' })));
+    console.log("Active players remaining in room:", players.length);
+    
+    players.forEach(p => {
+      console.log("Sending 'pause' command to remaining player...");
+      p.socket.send(JSON.stringify({ type: 'pause' }));
+    });
   });
 });
 
