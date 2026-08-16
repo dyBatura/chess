@@ -259,6 +259,7 @@
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
       max-width: 400px;
       width: 85vw;
+      position: relative; /* Crucial for positioning the top-right close cross */
     }
 
     .menu-content h2 {
@@ -317,23 +318,92 @@
       color: #ffffff;
     }
 
+    .menu-content h1 {
+      margin-top: 0;
+      color: #ffebd3;
+      font-size: 2.2rem;
+      letter-spacing: 2px;
+      margin-bottom: 25px;
+    }
+
+    /* Solid, Full-Screen Home Page (Completely hides the chessboard and sidebars) */
+    #home-page {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: #302e2b; /* Solid matching dark background */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000; /* Renders on top of everything else */
+    }
+
+    #home-page.hidden {
+      display: none;
+    }
+
+    /* Ensure the Settings menu renders on top of the solid Home Page */
+    #settings-menu {
+      z-index: 3000; /* Higher than the Home Page's 2000 */
+    }
+
+    /* Top-Right Close Cross Symbol */
+    .close-cross {
+      position: absolute;
+      top: 15px;
+      right: 20px;
+      font-size: 1.8rem;
+      color: #bababa;
+      cursor: pointer;
+      user-select: none;
+      transition: color 0.15s ease;
+      line-height: 1;
+    }
+
+.close-cross:hover {
+  color: #ffffff;
+}
+
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+    
   </style>
 </head>
 <body>
-  <!-- Real-time lobby pause menu overlay -->
+  <!-- Home Page Overlay -->
+  <div id="home-page" class="overlay">
+    <div class="menu-content">
+      <h1>Chess Multiplayer</h1>
+      <div class="menu-buttons">
+        <button id="play-btn" class="menu-btn">Play</button>
+        <button id="settings-btn" class="menu-btn secondary">Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Blank Settings Menu Overlay with Top-Right Cross -->
+  <div id="settings-menu" class="overlay hidden">
+    <div class="menu-content">
+      <span id="close-settings-btn" class="close-cross">&times;</span>
+      <h2>Settings</h2>
+      <div style="height: 120px;"></div> <!-- Blank menu space -->
+    </div>
+  </div>
+  <!-- Real-time lobby pause menu overlay with Top-Right Cross -->
   <div id="pause-menu" class="overlay">
     <div class="menu-content">
+      <span id="close-menu-btn" class="close-cross">&times;</span>
       <h2>Waiting for Opponent</h2>
       <p>The game will start automatically when the second player connects.</p>
       <div class="spinner"></div>
       
-      <!-- Interactive Menu Buttons -->
+      <!-- Bottom button layout with only the Reload button remaining -->
       <div class="menu-buttons">
         <button id="reload-btn" class="menu-btn">Reload Page</button>
-        <button id="close-menu-btn" class="menu-btn secondary">Close Menu</button>
       </div>
     </div>
   </div>
@@ -426,49 +496,6 @@
         this.currentMoveRow = null;
         this.isRemoteMove = false; // Flag to prevent move feedback loops
         this.playerColor = null;   // Assigned 'w' or 'b' by the server
-
-
-
-        // Connect to the WebSocket backend 
-        //this.socket = new WebSocket('ws://localhost:8080');
-        this.socket = new WebSocket('wss://chess-d7rf.onrender.com');
-
-
-
-        this.socket.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          
-          if (data.type === 'init') {
-            this.playerColor = data.color;
-            this.playerColorTextEl.textContent = this.playerColor === 'w' ? 'White' : 'Black';
-            
-            // Rotate the board layout if the server assigned you Black
-            if (this.playerColor === 'b') {
-              this.container.classList.add('flipped');
-            }
-          } else if (data.type === 'start') {
-            // Restore the close menu button and hide the overlay when both players are connected
-            document.getElementById('close-menu-btn').classList.remove('hidden');
-            this.pauseMenuEl.classList.add('hidden');
-          } else if (data.type === 'pause') {
-            // Reset the board state silently in JS instead of reloading the page to prevent network feedback loops
-            this.resetGame();
-            
-            // Show the waiting menu overlay and block gameplay
-            this.pauseMenuEl.classList.remove('hidden');
-            document.getElementById('close-menu-btn').classList.add('hidden');
-            
-            this.menuTitleEl.textContent = "Opponent Disconnected";
-            this.menuTextEl.textContent = "Your opponent left or reloaded the game. Waiting for a new player to connect...";
-  
-          } else if (data.from && data.to) {
-            // Apply opponent's remote move by simulating clicks
-            this.isRemoteMove = true;
-            this.handleSquareClick(data.from.row, data.from.col);
-            this.handleSquareClick(data.to.row, data.to.col);
-            this.isRemoteMove = false;
-          }
-        };
         
         document.getElementById('reload-btn').addEventListener('click', () => {
           window.location.reload();
@@ -477,23 +504,28 @@
         document.getElementById('close-menu-btn').addEventListener('click', () => {
           this.pauseMenuEl.classList.add('hidden');
         });
-        // Map the pause menu text elements
-        
+        // Map the new Home Page and Settings elements
+        this.homePageEl = document.getElementById('home-page');
+        this.settingsMenuEl = document.getElementById('settings-menu');
 
-        // Initial state: you are connecting to the server
-        
-        // Triggered when your browser successfully establishes a connection with the backend
-        this.socket.onopen = () => {
-          this.menuTitleEl.textContent = "Waiting for Opponent";
-          this.menuTextEl.textContent = "The game will start automatically when the second player connects.";
-        };
+        // Home Page: Play Button handler (Triggers routing to the game page)
+        document.getElementById('play-btn').addEventListener('click', () => {
+          window.location.hash = '#/game';
+        });
 
-        // Triggered if your connection to the server is lost or fails to open
-        this.socket.onclose = () => {
-          this.pauseMenuEl.classList.remove('hidden');
-          this.menuTitleEl.textContent = "Disconnected from Server";
-          this.menuTextEl.textContent = "Connection lost. Please click 'Reload Page' to attempt reconnection.";
-        };
+        // Home Page: Settings Button handler
+        document.getElementById('settings-btn').addEventListener('click', () => {
+          this.settingsMenuEl.classList.remove('hidden');
+        });
+
+        // Settings Menu: Close Button handler
+        document.getElementById('close-settings-btn').addEventListener('click', () => {
+          this.settingsMenuEl.classList.add('hidden');
+        });
+
+        // Initialize the router on load and listen for URL changes
+        window.addEventListener('hashchange', () => this.handleRouting());
+        this.handleRouting(); // Run immediately on page load
       }
 
       clearPossibleMoves() {
@@ -623,6 +655,88 @@
 
         this.clearPossibleMoves();
         this.renderPieces();
+      }
+
+      connectToServer() {
+        // Connect to the WebSocket backend 
+        //this.socket = new WebSocket('ws://localhost:8080');
+        this.socket = new WebSocket('wss://chess-d7rf.onrender.com');
+
+        // Triggered when your browser successfully establishes a connection with the backend
+        this.socket.onopen = () => {
+          this.menuTitleEl.textContent = "Waiting for Opponent";
+          this.menuTextEl.textContent = "The game will start automatically when the second player connects.";
+        };
+
+        // Triggered if your connection to the server is lost or fails to open
+        this.socket.onclose = () => {
+          this.pauseMenuEl.classList.remove('hidden');
+          this.menuTitleEl.textContent = "Disconnected from Server";
+          this.menuTextEl.textContent = "Connection lost. Please click 'Reload Page' to attempt reconnection.";
+        };
+
+        this.socket.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === 'init') {
+            this.playerColor = data.color;
+            this.playerColorTextEl.textContent = this.playerColor === 'w' ? 'White' : 'Black';
+            
+            // Rotate the board layout if the server assigned you Black
+            if (this.playerColor === 'b') {
+              this.container.classList.add('flipped');
+            }
+          } else if (data.type === 'start') {
+            // Restore the close menu button and hide the overlay when both players are connected
+            document.getElementById('close-menu-btn').classList.remove('hidden');
+            this.pauseMenuEl.classList.add('hidden');
+          } else if (data.type === 'pause') {
+            // Reset the board state silently in JS instead of reloading the page to prevent network feedback loops
+            this.resetGame();
+            
+            // Show the waiting menu overlay and block gameplay
+            this.pauseMenuEl.classList.remove('hidden');
+            document.getElementById('close-menu-btn').classList.add('hidden');
+            
+            this.menuTitleEl.textContent = "Opponent Disconnected";
+            this.menuTextEl.textContent = "Your opponent left or reloaded the game. Waiting for a new player to connect...";
+  
+          } else if (data.from && data.to) {
+            // Apply opponent's remote move by simulating clicks
+            this.isRemoteMove = true;
+            this.handleSquareClick(data.from.row, data.from.col);
+            this.handleSquareClick(data.to.row, data.to.col);
+            this.isRemoteMove = false;
+          }
+        };
+      }
+
+      handleRouting() {
+        const hash = window.location.hash;
+
+        if (hash === '#/game') {
+          // Navigate to the Game Page
+          this.homePageEl.classList.add('hidden');
+          this.settingsMenuEl.classList.add('hidden');
+          
+          // Only connect if we aren't already connected
+          if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+            this.pauseMenuEl.classList.remove('hidden');
+            this.connectToServer();
+          }
+        } else {
+          // Default to the Home Page (/#/home or root)
+          window.location.hash = '#/home';
+          this.homePageEl.classList.remove('hidden');
+          this.settingsMenuEl.classList.add('hidden');
+          this.pauseMenuEl.classList.add('hidden');
+          
+          // Safely disconnect from the server if they navigate back to the home page
+          if (this.socket) {
+            this.socket.close();
+            this.socket = null;
+          }
+        }
       }
 
       renderPieces() {
